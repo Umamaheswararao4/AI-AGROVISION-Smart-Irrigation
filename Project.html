@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Irrigation Dashboard</title>
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:'Poppins',sans-serif;
+}
+
+body{
+    background:#f4f8fb;
+    padding:20px;
+}
+
+.header{
+    background:#0d6efd;
+    color:white;
+    padding:20px;
+    border-radius:15px;
+    text-align:center;
+    box-shadow:0 5px 15px rgba(0,0,0,.1);
+}
+
+.ip-box{
+    margin-top:10px;
+    font-size:14px;
+    font-weight:bold;
+}
+
+.container{
+    margin-top:25px;
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+    gap:20px;
+}
+
+.card{
+    background:white;
+    padding:20px;
+    border-radius:20px;
+    box-shadow:0 4px 12px rgba(0,0,0,.08);
+    transition:0.3s;
+}
+
+.card:hover{
+    transform:translateY(-5px);
+}
+
+.card h3{
+    color:#666;
+    margin-bottom:10px;
+}
+
+.value{
+    font-size:32px;
+    font-weight:bold;
+    color:#0d6efd;
+}
+
+.status{
+    display:inline-block;
+    padding:8px 15px;
+    border-radius:10px;
+    color:white;
+    font-weight:bold;
+}
+
+.green{
+    background:#28a745;
+}
+
+.red{
+    background:#dc3545;
+}
+
+.orange{
+    background:#fd7e14;
+}
+
+.control-panel{
+    margin-top:30px;
+    background:white;
+    padding:25px;
+    border-radius:20px;
+    box-shadow:0 4px 12px rgba(0,0,0,.08);
+}
+
+input{
+    width:100%;
+    padding:12px;
+    margin-top:10px;
+    margin-bottom:15px;
+    border:1px solid #ccc;
+    border-radius:10px;
+}
+
+button{
+    padding:12px 20px;
+    border:none;
+    background:#0d6efd;
+    color:white;
+    border-radius:10px;
+    cursor:pointer;
+    font-size:16px;
+}
+
+button:hover{
+    background:#084298;
+}
+
+.notification{
+    margin-top:20px;
+    background:#fff3cd;
+    color:#856404;
+    padding:15px;
+    border-radius:10px;
+    font-weight:bold;
+}
+
+.connection{
+    margin-top:15px;
+    padding:10px;
+    border-radius:10px;
+    background:#e9ecef;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+    <h1>🌱 Smart Irrigation System</h1>
+    <p>ESP32 IoT Monitoring Dashboard</p>
+
+    <div class="ip-box">
+        ESP32 IP Address: <strong>192.168.4.1</strong>
+    </div>
+</div>
+
+<div class="container">
+
+    <div class="card">
+        <h3>🌡 Temperature</h3>
+        <div class="value" id="temp">-- °C</div>
+    </div>
+
+    <div class="card">
+        <h3>💧 Humidity</h3>
+        <div class="value" id="humidity">-- %</div>
+    </div>
+
+    <div class="card">
+        <h3>🌱 Soil Moisture</h3>
+        <div class="value" id="soil">-- %</div>
+    </div>
+
+    <div class="card">
+        <h3>☔ Rain Status</h3>
+        <span class="status green" id="rain">
+            No Rain
+        </span>
+    </div>
+
+    <div class="card">
+        <h3>🚰 Water Pump</h3>
+        <span class="status red" id="pump">
+            OFF
+        </span>
+    </div>
+
+</div>
+
+<div class="control-panel">
+
+    <h2>⚙ Alert Settings</h2>
+
+    <label>Soil Moisture Alert (%)</label>
+    <input type="number" id="soilThreshold" value="35">
+
+    <label>Temperature Alert (°C)</label>
+    <input type="number" id="tempThreshold" value="40">
+
+    <button onclick="saveSettings()">
+        Save Alert Settings
+    </button>
+
+    <div class="connection" id="connectionStatus">
+        Checking ESP32 Connection...
+    </div>
+
+</div>
+
+<div class="notification" id="notificationBox">
+    No Alerts
+</div>
+
+<script>
+
+const ESP32_IP = "http://192.168.4.1";
+
+let soilLimit =
+Number(localStorage.getItem("soilLimit")) || 35;
+
+let tempLimit =
+Number(localStorage.getItem("tempLimit")) || 40;
+
+document.getElementById("soilThreshold").value = soilLimit;
+document.getElementById("tempThreshold").value = tempLimit;
+
+function saveSettings(){
+
+    soilLimit = Number(
+        document.getElementById("soilThreshold").value
+    );
+
+    tempLimit = Number(
+        document.getElementById("tempThreshold").value
+    );
+
+    localStorage.setItem("soilLimit", soilLimit);
+    localStorage.setItem("tempLimit", tempLimit);
+
+    alert("✅ Settings Saved Successfully");
+}
+
+function checkAlerts(temp, soil){
+
+    let msg = "";
+
+    if(soil < soilLimit){
+        msg += "⚠ Soil Moisture Low!<br>";
+    }
+
+    if(temp > tempLimit){
+        msg += "🔥 High Temperature Alert!<br>";
+    }
+
+    if(msg === ""){
+        msg = "✅ System Healthy";
+    }
+
+    document.getElementById("notificationBox").innerHTML = msg;
+
+    if(
+        Notification.permission === "granted" &&
+        msg !== "✅ System Healthy"
+    ){
+        new Notification(
+            "Smart Irrigation Alert",
+            {
+                body: msg.replace(/<br>/g," ")
+            }
+        );
+    }
+}
+
+if(Notification.permission !== "granted"){
+    Notification.requestPermission();
+}
+
+async function getSensorData(){
+
+    try{
+
+        const response = await fetch(
+            `${ESP32_IP}/data`
+        );
+
+        const data = await response.json();
+
+        document.getElementById("temp")
+            .innerText = data.temperature + " °C";
+
+        document.getElementById("humidity")
+            .innerText = data.humidity + " %";
+
+        document.getElementById("soil")
+            .innerText = data.soil + " %";
+
+        document.getElementById("rain")
+            .innerText = data.rain ? "Rain Detected" : "No Rain";
+
+        document.getElementById("rain")
+            .className = data.rain
+                ? "status red"
+                : "status green";
+
+        document.getElementById("pump")
+            .innerText = data.pump ? "ON" : "OFF";
+
+        document.getElementById("pump")
+            .className = data.pump
+                ? "status green"
+                : "status red";
+
+        document.getElementById("connectionStatus")
+            .innerHTML = "✅ Connected to ESP32";
+
+        checkAlerts(
+            data.temperature,
+            data.soil
+        );
+
+    }
+    catch(error){
+
+        document.getElementById("connectionStatus")
+            .innerHTML =
+            "❌ ESP32 Disconnected (192.168.4.1)";
+
+        console.log(error);
+    }
+}
+
+getSensorData();
+
+setInterval(
+    getSensorData,
+    5000
+);
+
+</script>
+
+</body>
+</html>
